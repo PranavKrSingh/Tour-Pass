@@ -6,6 +6,12 @@ document.addEventListener('DOMContentLoaded', function() {
     var snapButton = document.getElementById('snap');
     var retakeButton = document.getElementById('retake');
     var finalPhoto = null; // To store the final photo
+    var isSubmitting = false; // Flag to prevent multiple submissions
+
+    // Elements for messages and loading indicator
+    var loadingMessage = document.getElementById('loadingMessage');
+    var gatepassMessage = document.getElementById('gatepassMessage');
+    var loadingIndicator = document.getElementById('loadingIndicator');
 
     startCameraButton.addEventListener('click', function(e) {
         e.preventDefault();
@@ -58,8 +64,17 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     });
 
-    document.getElementById('gatePassForm').addEventListener('submit', function(e) {
+    var form = document.getElementById('Visitor');
+
+    form.addEventListener('submit', function(e) {
         e.preventDefault();
+
+        if (isSubmitting) {
+            console.log('Form is already being submitted.');
+            return;
+        }
+        isSubmitting = true;
+
         var formData = {
             companyName: document.getElementById('companyName').value,
             visitorName: document.getElementById('visitorName').value,
@@ -73,11 +88,72 @@ document.addEventListener('DOMContentLoaded', function() {
             securityName: document.getElementById('securityName').value,
             comments: document.getElementById('comments').value
         };
-        
+
+        // Store data in localStorage
         localStorage.setItem('formData', JSON.stringify(formData));
         if (finalPhoto) {
             localStorage.setItem('visitorPhoto', finalPhoto); // Save the final photo
         }
-        window.location.href = 'display.html';
+
+        // Show loading and gate pass messages
+        loadingMessage.style.display = 'block';
+        gatepassMessage.style.display = 'block';
+        loadingIndicator.style.display = 'block';
+
+        // Parallelize gate pass generation and data storage
+        Promise.all([generateGatePass(formData), storeInGoogleSheet(formData)])
+            .then(([gatePassUrl]) => {
+                console.log("Gate pass generated:", gatePassUrl);
+                console.log("Data stored in Google Sheets successfully");
+                window.location.href = 'display.html';
+            })
+            .catch(error => {
+                console.error("An error occurred:", error);
+            })
+            .finally(() => {
+                isSubmitting = false; // Reset the submitting flag
+                // Hide loading and gate pass messages
+                loadingMessage.style.display = 'none';
+                gatepassMessage.style.display = 'none';
+                loadingIndicator.style.display = 'none';
+            });
     });
+
+    function generateGatePass(formData) {
+        return new Promise((resolve) => {
+            // Generate a URL or string for the gate pass, for example:
+            var gatePassUrl = `https://example.com/gatepass?visitorName=${encodeURIComponent(formData.visitorName)}&date=${encodeURIComponent(formData.date)}`;
+            resolve(gatePassUrl);
+        });
+    }
+
+    function storeInGoogleSheet(formData) {
+        return new Promise((resolve, reject) => {
+            // Prepare data for Google Sheets
+            var formBody = new FormData();
+            for (var key in formData) {
+                formBody.append(key, formData[key]);
+            }
+
+            // Append visitor photo as a base64 string to the form data
+            var visitorPhoto = localStorage.getItem('visitorPhoto');
+            if (visitorPhoto) {
+                formBody.append('visitorPhoto', visitorPhoto);
+            }
+
+            // Submit form data to Google Sheets using Fetch API
+            fetch('https://script.google.com/macros/s/AKfycby6KAi9I1j5oKRQI9Xq3RyU8IDgPhXsnRNY3vqKNod07NLJnC_FI_liBX2AdixIfthwbw/exec', {
+                method: 'POST',
+                body: formBody
+            }).then(response => {
+                if (response.ok) {
+                    resolve();
+                } else {
+                    reject("Failed to store data in Google Sheets");
+                }
+            }).catch(error => {
+                reject(error);
+            });
+        });
+    }
 });
