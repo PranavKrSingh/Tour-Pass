@@ -25,7 +25,7 @@
             </div>
         </div>
         <div class="right">
-            <form id="gatePassForm">
+            <form id="Visitor">
                 <div class="form-group">
                     <label for="companyName">Company Name:</label>
                     <input type="text" id="companyName" name="companyName" required>
@@ -74,8 +74,69 @@
             </form>
         </div>
     </div>
+
+    <!-- Loading and Gate Pass Message -->
+    <div id="loadingMessage" style="display:none;">Your Gatepass is being Generated</div>
+    <div id="gatepassMessage" style="display:none;">Loading</div>
+    <div id="loadingIndicator" style="display:none;">
+        <!-- Add a loading spinner here -->
+        <img src="spinner.gif" alt="Loading...">
+    </div>
+
+    <script>
+      const scriptURL = 'https://script.google.com/macros/s/AKfycby6KAi9I1j5oKRQI9Xq3RyU8IDgPhXsnRNY3vqKNod07NLJnC_FI_liBX2AdixIfthwbw/exec';
+      const form = document.forms['Visitor'];
+      const loadingMessage = document.getElementById('loadingMessage');
+      const gatepassMessage = document.getElementById('gatepassMessage');
+      const loadingIndicator = document.getElementById('loadingIndicator');
+
+      form.addEventListener('submit', e => {
+        e.preventDefault();
+
+        if (isSubmitting) {
+            console.log('Form is already being submitted.');
+            return;
+        }
+        isSubmitting = true;
+
+        var formData = new FormData(form);
+
+        // Show loading and gate pass messages
+        loadingMessage.style.display = 'block';
+        gatepassMessage.style.display = 'block';
+        loadingIndicator.style.display = 'block';
+
+        // Send form data to Google Sheets and generate gate pass
+        Promise.all([storeInGoogleSheet(formData), generateGatePass(formData)])
+            .then(([response, gatePassUrl]) => {
+                console.log("Gate pass generated:", gatePassUrl);
+                console.log("Data stored in Google Sheets successfully");
+                window.location.href = 'display.html';
+            })
+            .catch(error => {
+                console.error("An error occurred:", error);
+            })
+            .finally(() => {
+                isSubmitting = false;
+                loadingMessage.style.display = 'none';
+                gatepassMessage.style.display = 'none';
+                loadingIndicator.style.display = 'none';
+            });
+      });
+
+      // Function to generate the gate pass
+      function generateGatePass(formData) {
+        return new Promise((resolve) => {
+            var gatePassUrl = `https://example.com/gatepass?visitorName=${encodeURIComponent(formData.get('visitorName'))}&date=${encodeURIComponent(formData.get('date'))}`;
+            resolve(gatePassUrl);
+        });
+      }
+
+      function storeInGoogleSheet(formData) {
+        return fetch(scriptURL, { method: 'POST', body: formData })
+          .then(response => response.ok ? response.json() : Promise.reject('Failed to store data'))
+      }
+    </script>
     <script src="script.js"></script>
 </body>
 </html>
-
-
